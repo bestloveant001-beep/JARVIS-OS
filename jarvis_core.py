@@ -16,7 +16,7 @@ from datetime import datetime
 
 # ========== ตั้งค่า ==========
 REPO = "bestloveant001-beep/JARVIS-OS"
-TOKEN = os.getenv("GITHUB_TOKEN", "ใส่โทเคนของคุณ")
+TOKEN = os.getenv("GITHUB_TOKEN", "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")
 AUTO_SYNC = True
 # ============================
 
