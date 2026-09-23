@@ -1,204 +1,139 @@
-#!/usr/bin/env python3
-"""
-JARVIS OS — รันบน TrebEbit โดยตรง
-"""
-import os
-import sys
-import json
-import time
-import urllib.request
-import subprocess
-import sqlite3
-import base64
-from datetime import datetime
+# นำเข้าโมดูลทั้งหมดที่สร้างขึ้น
+from jarvis_voice import JARVIS_Voice
+from jarvis_monitor import JARVIS_Monitor
+from jarvis_smart_home import JARVIS_SmartHome
+from jarvis_memory import JARVIS_Memory
+from jarvis_security import JARVIS_Security
 
-DATA_DIR = "./jarvis_data"
-DB_FILE = f"{DATA_DIR}/memory.db"
-GITHUB_SYNC = os.getenv("ENABLE_GITHUB_SYNC", "true") == "true"
-REPO = os.getenv("GITHUB_REPO", "")
-TOKEN = os.getenv("GITHUB_TOKEN", "")
-
-def init_system():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(f"{DATA_DIR}/scripts", exist_ok=True)
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("""CREATE TABLE IF NOT EXISTS scripts (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        desc TEXT,
-        keywords TEXT,
-        code TEXT,
-        source TEXT,
-        updated_at TEXT
-    )""")
-    c.execute("""CREATE TABLE IF NOT EXISTS memory (
-        key TEXT PRIMARY KEY,
-        value TEXT,
-        updated_at TEXT
-    )""")
-    conn.commit()
-    conn.close()
-    print("✅ JARVIS พร้อมทำงานบน TrebEbit")
-
-
-def github_action(action, path="", content=""):
-    if not TOKEN or not REPO:
-        return "⚠️ ยังไม่ได้ตั้งค่า GitHub"
-    
-    api = f"https://api.github.com/repos/{REPO}/contents/{path}"
-    headers = {
-        "Authorization": f"token {TOKEN}",
-        "User-Agent": "JARVIS-TrebEbit"
-    }
-
-    if action == "pull":
-        try:
-            req = urllib.request.Request(api, headers=headers)
-            resp = urllib.request.urlopen(req)
-            data = json.loads(resp.read())
-            return base64.b64decode(data["content"]).decode("utf-8")
-        except Exception as e:
-            return f"❌ ดึงไม่ได้: {e}"
-
-    if action == "push":
-        try:
-            sha = None
-            try:
-                r = urllib.request.urlopen(urllib.request.Request(api, headers=headers))
-                resp_data = json.loads(r.read())
-                sha = resp_data.get("sha")
-            except Exception:
-                pass
-
-            payload = {
-                "message": f"อัพเดท {datetime.now()}",
-                "content": base64.b64encode(content.encode("utf-8")).decode()
-            }
-            if sha:
-                payload["sha"] = sha
-
-            headers_full = {
-                "Authorization": f"token {TOKEN}",
-                "User-Agent": "JARVIS-TrebEbit",
-                "Content-Type": "application/json"
-            }
-            
-            req = urllib.request.Request(
-                api,
-                data=json.dumps(payload).encode("utf-8"),
-                headers=headers_full,
-                method="PUT"
-            )
-            urllib.request.urlopen(req)
-            return f"✅ ส่งขึ้น GitHub แล้ว: {path}"
-        except Exception as e:
-            return f"❌ ส่งไม่ได้: {e}"
-
-
-def save_script(name, desc, code, keywords=""):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute(
-        "REPLACE INTO scripts VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (name, name, desc, keywords, code, "TrebEbit", str(datetime.now()))
-    )
-    conn.commit()
-    conn.close()
-    
-    if GITHUB_SYNC:
-        github_action("push", f"scripts/{name}.py", code)
-    return f"✅ จดจำแล้ว: {name}"
-
-
-def search_script(query):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT name, desc FROM scripts")
-    res = []
-    for n, d in c.fetchall():
-        if any(w in (n + " " + d).lower() for w in query.lower().split()):
-            res.append({"name": n, "desc": d})
-    conn.close()
-    return res
-
-
-def run_script(name):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT code FROM scripts WHERE id=?", (name,))
-    row = c.fetchone()
-    conn.close()
-    
-    if not row:
-        return "❌ ไม่พบสคริปต์"
-    
-    temp_path = f"{DATA_DIR}/temp_run.py"
-    with open(temp_path, "w", encoding="utf-8") as f:
-        f.write(row[0])
-    
-    out = subprocess.run(
-        [sys.executable, temp_path],
-        capture_output=True,
-        text=True
-    )
-    return f"--- ผลลัพธ์ ---\n{out.stdout}{out.stderr}"
-
+# เริ่มทำงานทุกระบบ
+voice = JARVIS_Voice()
+monitor = JARVIS_Monitor()
+home = JARVIS_SmartHome()
+memory = JARVIS_Memory()
+security = JARVIS_Security()
 
 def process_command(cmd):
     cmd = cmd.strip()
+    response = ""
     
-    if cmd in ["เริ่ม", "init", "start"]:
+    # === ระบบพื้นฐาน ===
+    if cmd in ["เริ่ม", "เปิดระบบ"]:
         init_system()
-        return "✅ พร้อมแล้ว! พิมพ์ 'ช่วย' ดูคำสั่ง"
+        return "✅ JARVIS พร้อมทำงานเต็มรูปแบบ — พิมพ์ 'ช่วย' ดูคำสั่งทั้งหมด"
     
-    if cmd in ["สถานะ", "status"]:
-        return f"ทำงานปกติ — ซิงค์ GitHub: {GITHUB_SYNC}"
+    if cmd in ["ช่วย", "help"]:
+        return """
+📖 คำสั่งทั้งหมดของ JARVIS:
+
+🔊 ระบบเสียง
+- พูดว่า [ข้อความ] → ให้ JARVIS พูดออกมา
+
+📊 สถานะระบบ
+- สถานะ / รายงาน → แสดงสภาพทั้งระบบ
+
+🏠 บ้านอัจฉริยะ
+- เปิด [ชื่ออุปกรณ์] → เปิดไฟ/แอร์/พัดลม
+- ปิด [ชื่ออุปกรณ์] → ปิดอุปกรณ์
+- สถานะอุปกรณ์ → ดูทุกอย่าง
+
+🧠 หน่วยความจำ
+- จดจำ [ข้อมูล] → บันทึกสิ่งที่บอก
+- คิดถึง [คำ] → ค้นความทรงจำ
+- ความชอบ [ชื่อ] = [ค่า] → บันทึกค่าที่ชอบ
+
+🔒 ความปลอดภัย
+- ตรวจสอบ [โค้ด] → เช็คความปลอดภัยก่อนรัน
+- การแจ้งเตือน → ดูเหตุการณ์ทั้งหมด
+
+📋 จัดการสคริปต์
+- จำ [ชื่อ]\n[โค้ด] → บันทึกสคริปต์
+- รัน [ชื่อ] → เรียกใช้
+- ซิงค์ github → ส่งข้อมูลขึ้นคลาวด์
+- จบ → ปิดระบบ
+"""
     
+    # === ระบบเสียง ===
+    if cmd.startswith("พูดว่า "):
+        text = cmd.split(" ", 1)[1]
+        voice.speak(text)
+        return f"🔊 พูดแล้ว: {text}"
+    
+    # === สถานะระบบ ===
+    if cmd in ["สถานะ", "รายงาน", "ภาพรวม"]:
+        return monitor.full_report()
+    
+    # === บ้านอัจฉริยะ ===
+    res = home.match_command(cmd)
+    if res:
+        memory.remember_conversation(cmd, res)
+        return res
+    
+    if cmd in ["สถานะอุปกรณ์", "อุปกรณ์"]:
+        return "📋 สถานะอุปกรณ์:\n" + home.status_all()
+    
+    # === หน่วยความจำ ===
+    if cmd.startswith("จดจำ "):
+        fact = cmd.split(" ", 1)[1]
+        memory.remember_conversation("ผู้ใช้บอกว่า", fact)
+        return f"✅ จดจำแล้ว: {fact}"
+    
+    if cmd.startswith("คิดถึง "):
+        kw = cmd.split(" ", 1)[1]
+        found = memory.recall(kw)
+        if found:
+            return "🧠 พบความทรงจำ:\n" + "\n".join(f"- {f['user']}" for f in found)
+        return "❌ ไม่พบข้อมูลที่เกี่ยวข้อง"
+    
+    # === ความปลอดภัย ===
+    if cmd.startswith("ตรวจสอบ "):
+        code = cmd.split(" ", 1)[1]
+        ok, msg = security.check_safety(code)
+        return msg
+    
+    if cmd == "การแจ้งเตือน":
+        return security.get_alerts()
+    
+    # === จัดการสคริปต์ (จากเดิม) ===
     if cmd.startswith("จำ "):
         parts = cmd.split("\n", 1)
         head = parts[0].split(" ", 1)
         name = head[1] if len(head) > 1 else "ไม่มีชื่อ"
         code = parts[1] if len(parts) > 1 else ""
-        return save_script(name, "บันทึกเอง", code)
-    
-    if cmd.startswith("หา "):
-        q = cmd.split(" ", 1)[1]
-        rs = search_script(q)
-        if rs:
-            return "\n".join(f"- {r['name']}: {r['desc']}" for r in rs)
-        return "ไม่พบ"
+        safe, msg = security.check_safety(code)
+        if not safe:
+            return msg + "\nพิมพ์ 'ยืนยัน' เพื่อบันทึก"
+        res = save_script(name, "บันทึกผ่านระบบหลัก", code)
+        memory.remember_conversation(cmd, res)
+        return res
     
     if cmd.startswith("รัน "):
         name = cmd.split(" ", 1)[1]
-        return run_script(name)
+        res = run_script(name)
+        memory.remember_conversation(cmd, res)
+        return res
     
     if cmd == "ซิงค์ github":
-        return github_action("push", "backup/time.txt", str(datetime.now()))
+        res = github_action("push", "backup/memory.json", json.dumps(memory.data, ensure_ascii=False))
+        return res
     
-    if cmd == "ช่วย":
-        return """
-📖 คำสั่ง:
-เริ่ม           — เปิดระบบ
-จำ ชื่อ\nโค้ด    — จดจำสคริปต์
-หา คำค้น        — ค้นหา
-รัน ชื่อ        — เรียกใช้
-ซิงค์ github    — ส่งขึ้น
-สถานะ          — ดูสถานะ
-จบ             — ปิด
-"""
-    
+    memory.remember_conversation(cmd, "ไม่เข้าใจคำสั่ง")
     return "ไม่เข้าใจ พิมพ์ 'ช่วย'"
 
 
 if __name__ == "__main__":
-    print("🤖 JARVIS พร้อม! พิมพ์ 'เริ่ม' เพื่อเปิดใช้งาน")
+    print("🤖 JARVIS — ระบบอัจฉริยะเต็มรูปแบบ")
+    print("✨ ผสาน: เสียง | ควบคุมบ้าน | ความจำ | ความปลอดภัย")
+    print("พิมพ์ 'เริ่ม' เพื่อเปิดใช้งาน หรือ 'ช่วย' ดูคำสั่งทั้งหมด\n")
+    
     while True:
         try:
-            inp = input("\nคุณ: ")
-            if inp.lower() in ["จบ", "ออก", "exit"]:
+            inp = input("คุณ: ")
+            if inp.lower() in ["จบ", "ออก", "ปิดระบบ"]:
+                voice.speak("ปิดระบบตามคำสั่ง ครับ ขอบคุณที่ใช้บริการ")
                 break
-            print("JARVIS:", process_command(inp))
+            resp = process_command(inp)
+            print("JARVIS:", resp)
         except KeyboardInterrupt:
             break
+    
     print("ปิดระบบแล้ว")
