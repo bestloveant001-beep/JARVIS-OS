@@ -15,9 +15,8 @@ from datetime import datetime
 DATA_DIR = "./jarvis_data"
 DB_FILE = f"{DATA_DIR}/memory.db"
 GITHUB_SYNC = os.getenv("ENABLE_GITHUB_SYNC", "true") == "true"
-REPO = os.getenv("GITHUB_REPO", "")
-TOKEN = os.getenv("GITHUB_TOKEN", "")
-
+REPO = "bestloveant001-beep/JARVIS-OS"
+TOKEN = "ใส่รหัส_token_ของคุณตรงนี้"
 
 def init_system():
     os.makedirs(DATA_DIR, exist_ok=True)
