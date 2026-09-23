@@ -16,7 +16,7 @@ DATA_DIR = "./jarvis_data"
 DB_FILE = f"{DATA_DIR}/memory.db"
 GITHUB_SYNC = os.getenv("ENABLE_GITHUB_SYNC", "true") == "true"
 REPO = "bestloveant001-beep/JARVIS-OS"
-TOKEN = "ใส่รหัส_token_ของคุณตรงนี้"
+TOKEN = "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"
 
 def init_system():
     os.makedirs(DATA_DIR, exist_ok=True)
