@@ -67,19 +67,23 @@ def github_action(action, path="", content=""):
             sha = None
             try:
                 r = urllib.request.urlopen(urllib.request.Request(api, headers=headers))
-                sha = json.loads(r.read()).get("sha")
+                resp_data = json.loads(r.read())
+                sha = resp_data.get("sha")
             except Exception:
                 pass
 
             payload = {
                 "message": f"อัพเดท {datetime.now()}",
-                "content": base64.b64encode(content.encode()).decode()
+                "content": base64.b64encode(content.encode("utf-8")).decode()
             }
             if sha:
                 payload["sha"] = sha
 
-            headers_full = dict(headers)
-            headers_full["Content-Type"] = "application/json"
+            headers_full = {
+                "Authorization": f"token {TOKEN}",
+                "User-Agent": "JARVIS-TrebEbit",
+                "Content-Type": "application/json"
+            }
             
             req = urllib.request.Request(
                 api,
@@ -162,7 +166,9 @@ def process_command(cmd):
     if cmd.startswith("หา "):
         q = cmd.split(" ", 1)[1]
         rs = search_script(q)
-        return "\n".join(f"- {r['name']}: {r['desc']}" for r in rs) if rs else "ไม่พบ"
+        if rs:
+            return "\n".join(f"- {r['name']}: {r['desc']}" for r in rs)
+        return "ไม่พบ"
     
     if cmd.startswith("รัน "):
         name = cmd.split(" ", 1)[1]
